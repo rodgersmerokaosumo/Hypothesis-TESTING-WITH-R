@@ -1,133 +1,96 @@
 # Background:
 
-# Hi, I calculated abnormal returns in an event study. The abnormal return is, therefore, the
+Hi, I calculated abnormal returns in an event study. The abnormal return is, therefore, the
+cumulative abnormal return, CAR. Now I need to check the impact of different variables on the CAR. CAR is therefore the dependent variable. As I have two subsamples (COVID- 19
+dummy = 0 or 1), which indicated whether the event happened before (=0) or during COVID_19(=1). My focus of interest is the test during COVID.
 
-# cumulative abnormal return, CAR. Now I need to check the impact of different variables on
+*- Please perform OLS regressions.
 
-# the CAR. CAR is therefore the dependent variable. As I have two subsamples (COVID- 19
+*- Please run first the needed tests.
 
-# dummy = 0 or 1), which indicated whether the event happened before (=0) or during COVID
+*- It could be wise, to winsorize the dependent variable. If you do so, use the Winsor-function to make outliers adopt the values of the 5th- and 95th percentile.
 
-# (=1). My focus of interest is the test during COVID.
+*- Please test at least with the t-test. I don’t think that the sample holds normality.
 
-# - Please perform OLS regressions.
+Therefore, a non-parametric test like the Wilcoxon-test would make sense. The most variables are dummy variables. If it is possible to test even here both, it would be nice. Otherwise test the outcome, I want to prove.
 
-# - Please run first the needed tests.
-
-# - It could be wise, to winsorize the dependent variable. If you do so, use the Winsor-
-
-# function to make outliers adopt the values of the 5th- and 95th percentile.
-
-# - Please test at least with the t-test. I don’t think that the sample holds normality.
-
-# Therefore, a non-parametric test like the Wilcoxon-test would make sense.
-
-# - I don’t know how exactly ANOVA works, but if you would be able to test Pre/During
-
-# COVID this would be nice. The most variables are dummy variables. If it is possible to
-
-# test even here both, it would be nice. Otherwise test the outcome, I want to prove.
-
-# - Is there any additional test you have in mind? Pearson Correlation Matrix of used
-
-# variables to test multicollinearity (or anything that makes more sense – because of the
-
-# various dummy variables the correlation matrix will not be so powerful)?
-
-# - For any questions, reach out to me.
-
-# - Output should be the requested things as the R Code and Tables (for the summary
-
-# statistics)
+*- Is there any additional test you have in mind? Pearson Correlation Matrix of used variables to test multicollinearity (or anything that makes more sense – because of the various dummy variables the correlation matrix will not be so powerful)?
 
 # What I want to show:
 
-# Hypothesis 1:
+## Hypothesis 1:
+COVID- 19 has a positive impact on the cumulative abnormal return (CAR = dependent variable).
 
-# COVID- 19 has a positive impact on the cumulative abnormal return (CAR = dependent
+### Variable of interest:
 
-# variable).
+ COVID- 19
 
-# Variable of interest:
+## Hypothesis 2:
 
-# COVID- 19
+The size has a positive impact on the cumulative abnormal return (CAR = dependent variable) during COVID- 19.
 
-# Hypothesis 2:
+### Variables of interest:
 
-# The size has a positive impact on the cumulative abnormal return (CAR = dependent
+Size_revenue x COVID- 19
 
-# variable) during COVID- 19.
+##  Hypothesis 3:
+The financial strength has a positive impact on the cumulative abnormal return (CAR = dependent variable) during COVID- 19.
 
-# Variables of interest:
+### Variables of interest:
 
-# Size_revenue x COVID- 19
+EBITDA_pos_2020 x COVID- 19
 
-# Hypothesis 3:
+revenue_pos_2020 x COVID- 19
 
-# The financial strength has a positive impact on the cumulative abnormal return (CAR =
-
-# dependent variable) during COVID- 19.
-
-# Variables of interest:
-
-# EBITDA_pos_2020 x COVID- 19
-
-# revenue_pos_2020 x COVID- 19
-
-# P/E Dummy x COVID- 19
+P/E Dummy x COVID- 19
 
 
-# Hypothesis 4:
+## Hypothesis 4:
+The financial strength together with the size has a positive impact on the cumulative abnormal return (CAR = dependent variable) during COVID- 19.
 
-# The financial strength together with the size has a positive impact on the cumulative
+### Variables of interest:
 
-# abnormal return (CAR = dependent variable) during COVID- 19.
+Size_revenue x EBITDA_pos_2020 x COVID- 19
 
-# Variables of interest:
+Size_revenue x revenue_pos_2020 x COVID- 19
 
-# Size_revenue x EBITDA_pos_2020 x COVID- 19
+Size_revenue x P/E Dummy x COVID- 19
 
-# Size_revenue x revenue_pos_2020 x COVID- 19
+## Hypothesis 5:
 
-# Size_revenue x P/E Dummy x COVID- 19
+Local transaction (cross-border = 0) has a positive impact on the cumulative abnormal return (CAR = dependent variable).
 
-# Hypothesis 5:
+### Variable of interest:
 
-# Local transaction (cross-border = 0) has a positive impact on the cumulative abnormal
-
-# return (CAR = dependent variable).
-
-# Variable of interest:
-
-# cross_border x COVID- 19
+*cross_border x COVID- 19*
 
 # Regressions (if something does not make sense – text me) :
 
-# Variables:
+Variables:
 
-# V1: COVID- 19 (dummy) (of interest =1)
+*V1: COVID- 19 (dummy) (of interest =1)*
 
-# V2: sector
+*V2: sector*
 
-# V3: Diversification (dummy) (of interest = 0 )
+*V3: Diversification (dummy) (of interest = 0 )*
 
-# V4: Cross-Border (dummy) (of interest = 0 ) size_relative
+*V4: Cross-Border (dummy) (of interest = 0 ) size_relative*
 
-# V 5 : Payment: Cash (dummy) (of interest =1)
+*V 5 : Payment: Cash (dummy) (of interest =1)*
 
-# V 6 : log (deal value)
+*V 6 : log (deal value)*
 
-# V 7 : Financial strength: EBITDA_pos_2020 (of interest =1)
+*V 7 : Financial strength: EBITDA_pos_2020 (of interest =1)*
 
-# V 8 : Financial strength: revenue_pos_2020 (of interest =1)
+*V 8 : Financial strength: revenue_pos_2020 (of interest =1)*
 
-# V 9 : Financial strength: P/E Dummy (of interest =1)
+*V 9 : Financial strength: P/E Dummy (of interest =1)*
 
-# V 10 : log (size_revenue)
+*V 10 : log (size_revenue)
 
-# V11: size_category
+*V11: size_category*
 
-# V12: size_relative
+*V12: size_relative*
 
 ## CAR 1: CAR 2:
 
