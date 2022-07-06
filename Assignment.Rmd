@@ -1,0 +1,848 @@
+---
+title: "Assignment"
+output:
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+    number_sections: yes
+    fig_caption: yes
+    latex_engine: xelatex
+    df_print: kable
+  html_document:
+    toc: yes
+    df_print: paged
+date: '2022-06-25'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(digits = 4) 
+set.seed(42)
+```
+
+```{r include=FALSE}
+##Libraries
+library(stringr)
+library(ggplot2)
+library(dplyr)
+library(ggpubr)
+library(knitr)
+library(tidyverse)
+library(janitor) #for cleaning names
+library(magrittr)
+library(DescTools)
+```
+## Importing Data
+
+```{r}
+data = data <- readxl::read_excel("Dataset for regressions.xlsx")
+```
+
+```{r}
+data = data %>% clean_names()
+data %>% glimpse()
+```
+Below shows how to identfy null values which had been recorded as ND
+```{r}
+data$p_e_dummy[which(data$p_e_dummy == "n.d.")] <- NA
+data$shares[which(data$shares == "n.d.")] <- NA
+```
+
+converrting character columns to factor/categorical data types
+```{r}
+
+cols = c("covid_19", "sector", "cross_border", "diversification", "cash", "both", "dummy_relative_size", "size_category", "p_e_dummy", "shares")
+
+data %<>% mutate_at(cols, factor)
+```
+
+convert some character data types to numeric
+```{r}
+
+cols_num = c("deal_value", "size_relative")
+
+data %<>% mutate_at(cols_num, as.numeric) 
+kable(str(data))
+```
+## Convert Size_revenue to a log
+```{r}
+data$size_revenue = log(data$size_revenue)
+```
+
+### Plotting the Distribution of Log Size Revenue
+
+```{r}
+p1 = ggplot(data = data, aes(x = size_revenue)) + 
+ geom_density(fill = "blue")+theme_light()+labs(title = "Distribtion of Revenue Size", caption = "Assignment")
+
+p2 = ggplot(data = data, aes(x = size_revenue)) + 
+ geom_density(fill = "blue")+facet_wrap(~covid_19)+theme_light()+labs(title = "Distribtion of Revenue Size", caption = "Assignment")
+
+ggarrange(p1, p2)
+```
+
+Distribution remains the same before and after covid
+
+
+## Data Exploratory Analysis
+
+```{r}
+library(skimr)
+skim(data)
+```
+
+### Plotting Distribution of the CAR Variables
+
+```{r}
+p1 = ggplot(data = data, aes(x = car_1)) + 
+ geom_density(fill = "blue") + theme_light()+labs(title = "Distribution of CAR1", caption = 'Assignment')
+
+
+p2 = ggplot(data = data, aes(x = car_2)) + 
+ geom_density(fill = "blue") + theme_light()+labs(title = "Distribution of CAR2", caption = 'Assignment')
+
+ggarrange(p1, p2)
+
+```
+From the density plots above:Note that the distribution is almost Gaussian because most of the data is evenly distributed around the median, however, we note that it has a small left tail and a long right tail. The CAR2 variable has a normal distribution with almost equal length tails.
+
+
+## Correlation Analysis of the various variables
+
+#### Correlation
+
+```{r}
+library(corrr)
+library(dplyr, warn.conflicts = FALSE)
+
+data_cor = data %>% 
+    select_if(is.numeric) %>%
+    correlate()
+kable(data_cor)
+```
+
+##### Correlation Plot
+
+```{r}
+rplot(data_cor)+labs(title = 'Correlation Plot', caption = 'Assignment')
+```
+### Covariance : Strength of Relationship between Variables
+```{r}
+data_cov = data %>% 
+    select_if(is.numeric) %>%
+    colpair_map(stats::cov) %>%
+  stretch()
+kable(data_cov)
+
+```
+
+### Assessing Siginificance of Relationship between numeric variables
+
+```{r}
+calc_ttest_p_value <- function(vec_a, vec_b){
+  t.test(vec_a, vec_b)$p.value
+}
+data_num = data %>% select_if(is.numeric)
+dat_t = colpair_map(data_num, calc_ttest_p_value)
+kable(dat_t)
+
+```
+
+
+At a 95% level of significance, all numeric variables have a statistically significant relationship with the CAR variable. However, CAR1 and CAR2, at the same level of significance, their relationship is not statistically significant.
+
+T test was used to assess the relationship between numerical data, which was normally distributed as shown by the plots above.
+
+#### Examining Statistical Significance of relationship between categorical Variables
+
+There are a few different ways of finding the strength of the relationship between two categorical variables. One useful measure is called Cramer’s V, which takes on values between 0 and 1 depending on how closely associated the variables are.
+
+```{r}
+
+library(data.table)
+
+data_cat <- data[,colnames(data)[grepl('factor|logical|character',sapply(data,class))],with=F]
+
+library(rcompanion)
+
+kable(colpair_map(data_cat, cramerV, digits = 2))
+```
+ Note that Covid19 is most closely related with Sector than any other categorical variables.
+ 
+#### Distribution of Car1 generally and During and After Covid19
+ 
+```{r}
+p1 = ggplot(data = data, aes(x = car_1)) + 
+ geom_density(fill = "blue")+theme_light()+labs(title = 'Distribution of CAR1', caption = 'Assignment')
+
+p2 = ggplot(data = data, aes(x = car_1)) + 
+ geom_density(fill = "blue")+facet_wrap(~covid_19)+theme_light()+labs(title = 'Distribution of CAR1', caption = 'Assignment')
+
+ggarrange(p1, p2)
+```
+
+
+#### Distribution of Car2 generally and During and After Covid19
+```{r}
+p1 = ggplot(data = data, aes(x = car_2)) + 
+ geom_density(fill = "blue")+theme_light()
+
+p2 = ggplot(data = data, aes(x = car_2)) + 
+ geom_density(fill = "blue")+facet_wrap(~covid_19)+theme_light()
+
+ggarrange(p1, p2)
+```
+## Winsorizing
+Winsorization is a way to minimize the influence of outliers in your data by either: Assigning the outlier a lower weight, Changing the value so that it is close to other values in the set.
+
+```{r}
+data$car_1 = Winsorize(data$car_1)
+data$car_2 = Winsorize(data$car_2)
+```
+
+### Examining the change in Distributions after Winsorizing
+
+#### CAR 1
+
+```{r}
+p1 = ggplot(data = data, aes(x = car_1)) + 
+ geom_density(fill = "blue")+theme_light()+labs(title = 'Distribution of CAR1', caption = 'Assignment')
+
+p2 = ggplot(data = data, aes(x = car_1)) + 
+ geom_density(fill = "blue")+facet_wrap(~covid_19)+theme_light()+labs(title = 'Distribution of CAR1', caption = 'Assignment')
+
+ggarrange(p1, p2)
+```
+
+### Examining the change in Distributions after Winsorizing
+
+#### CAR 2
+
+```{r}
+p1 = ggplot(data = data, aes(x = car_2)) + 
+ geom_density(fill = "blue")+theme_light()
+
+p2 = ggplot(data = data, aes(x = car_2)) + 
+ geom_density(fill = "blue")+facet_wrap(~covid_19)+theme_light()
+
+ggarrange(p1, p2)
+```
+Outliers negatively affect the accuracy of the model, hence the winsoriizing
+
+## HYPOTHESIS 1
+
+*COVID-19 has a positive impact on the cumulative abnormal return (CAR = dependent variable).*
+
+```{r}
+library(viridis)
+p1 = data %>%
+  ggplot( aes(x=covid_19, y=car_1, fill=covid_19)) +
+    geom_boxplot() +
+    scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+    geom_jitter(color="black", size=0.4, alpha=0.9) +
+    theme_light() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("CAR 1 VS COVID 19") +
+    xlab("")
+p2 = data %>%
+  ggplot( aes(x=covid_19, y=car_2, fill=covid_19)) +
+    geom_boxplot() +
+    scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+    geom_jitter(color="black", size=0.4, alpha=0.9) +
+    theme_light() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("CAR 2 VS COVID 19") +
+    xlab("")
+
+ggarrange(p1, p2)
+```
+Note that for CAR1 before covid-19 there were no otlers and median/ and mean was higher. CAR2 in both Covid-19 instances had outliers, CAR1 in covid times and after has outliers. Without winsorizing, the number of outliers would have been many.
+
+```{r}
+# function to extract coefficients
+extractCoefs <- function(x = mod1_CAR1){
+  sum <- summary(x)
+
+  df <- data.frame(sum$coefficients)
+  names(df) <- c("Estimate", "Std_error", "T_value", "P_value")
+  rownames(df)[1] <- "COVID190"
+  df <- round(df, 3)
+  df$Coefficient <- rownames(df)
+  df$Dependent <- names(x$model)[1]
+  rownames(df) <- NULL
+  df <- df[, c("Dependent", "Coefficient", names(df)[-which(names(df) %in% c("Coefficient", "Dependent"))]) ]
+  return(df)
+}
+```
+
+```{r}
+mod1_CAR1 <- lm(car_1 ~ covid_19, data = data)
+summary(mod1_CAR1)
+```
+
+```{r}
+extractCoefs(mod1_CAR1)
+```
+
+```{r}
+mod1_CAR2 <- lm(car_2 ~ covid_19, data = data)
+summary(mod1_CAR2)
+```
+
+```{r}
+extractCoefs(mod1_CAR2)
+```
+
+There is a marginally significant negative effect of COVID19 on CAR1, using a confidence interval of 80% (p < 0.2) but not in CAR2.On this significant level, the relationship between Covid 19 and Car 2 is not statistically significant, which means, car 2 was not impacted heavily or in a meaningful manner by Covid 19
+
+Note that a linear model with a two level factor (with similar sample size per factor) is equivalent to a T-student test. Then, coefficients here show the mean of the response variable for group COVID19 = 0 and the effect of the second level. Then, for CAR1, the mean of the COVID 19 = 0 group is 0.023, while the effect of the second level (COVID 19 = 1) is -0.017. Then, the mean for the second level in CAR1 is 0.023 - 0.017= 0.06). The significance of COVID191 shows whether the difference is statistically significative.
+
+### Assumption One: Linearity of the Data
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod1_CAR1)
+```
+
+In the above plot we can see that there is no clear pattern in the residual plot. This would indicate that we meet the assumption that there is a linear relationship between the predictors and the outcome variable.
+
+### Assumption Two: Predictors (x) Are Independent and Observed with Negligible Error
+
+```{r}
+library(car)
+durbinWatsonTest(mod1_CAR1)
+```
+
+The null hypothesis states that the errors are not auto-correlated with themselves (they are independent). Thus, if we achieve a p-value > 0.05, 0.836,  we would fail to reject the null hypothesis. This would give us enough evidence to state that our independence assumption is met!
+
+### Assumption Three: Residual Errors Have a Mean Value of Zero
+
+In the above plot, we can see that the red line is below 0 for low fitted values and high fitted values. This indicates that the residual errors have a mean value of below 0
+
+### Assumption Four: Residual Errors Have Constant Variance
+
+We can check this assumption using the Scale-Location plot. In this plot we can see the fitted values vs the square root of the standardized residuals. Ideally, we would want to see the residual points equally spread around the red line, which would indicate constant variance.
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod1_CAR1)
+```
+
+```{r}
+library(car)
+ncvTest(lm(car_1 ~ covid_19, data = data))
+```
+
+
+The null hypothesis states that there is constant variance. a pvalue > 0.05, suggests you would fail to reject the null. This means you have enough evidence to state that your assumption is met!
+
+All assumptions have been met, incuding the residually errors are normally distributed.
+
+There is a marginally significant negative effect of COVID19 on CAR1 (p < 0.1) but not in CAR2.
+
+Note that a linear model with a two level factor (with similar sample size per factor) is equivalent to a T-student test. Then, coefficients here show the mean of the response variable for group COVID19 = 0 and the effect of the second level. Then, for CAR1, the mean of the COVID 19 = 0 group is 0.035, while the effect of the second level (COVID 19 = 1) is -0.028. Then, the mean for the second level in CAR1 is 0.035 - 0.028 = 0.07). The significance of COVID191 shows whether the difference is statistically significative.
+
+## HYPOTHESIS 2
+
+**The size has a positive impact on the cumulative abnormal return (CAR = dependent variable) during COVID-19.**
+
+### Plotting Covid19 against Revenue
+
+```{r}
+data %>%
+  ggplot( aes(x=covid_19, y=size_revenue, fill=covid_19)) +
+    geom_boxplot() +
+    scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+    geom_jitter(color="black", size=0.4, alpha=0.9) +
+    theme_light() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("Revenue Size VS COVID 19") +
+    xlab("")
+```
+Note that there are no outliers.
+
+
+```{r}
+mod2_CAR1 <- lm(car_1 ~ covid_19 * size_revenue, data = data)
+summary(mod2_CAR1)
+```
+
+```{r}
+kable(extractCoefs(mod2_CAR1))
+```
+
+```{r}
+mod2_CAR2 <- lm(car_2 ~ covid_19 * size_revenue, data = data)
+summary(mod2_CAR2)
+```
+
+```{r}
+kable(extractCoefs(mod2_CAR2))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod2_CAR2)
+```
+
+Use the principles of checking for assumptions on linear models from the first hypothesis test.
+
+The effect of covid on CAR1 is maintained, but the relatiopnship is thought to be statistically significant at a much lower significant level, but there is no effect of size revenue nor interaction between size revenue and COVID. No significant effects are detected for CAR2.
+
+## Hypothesis 3
+
+**The financial strength has a positive impact on the cumulative abnormal return (CAR = dependent variable) during COVID-19.**
+
+### COVID 19 VS EBITDA
+
+```{r}
+data %>%
+  ggplot( aes(x=covid_19, y=ebitda_pos_2020, fill=covid_19)) +
+    geom_boxplot() +
+    scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+    geom_jitter(color="black", size=0.4, alpha=0.9) +
+    theme_light() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("ebitda_pos_2020 VS COVID 19") +
+    xlab("")
+```
+Note: Mean and median are equal, 1st quartile and minimum number are equal, 3rd quartile and max are equal
+
+
+
+```{r}
+mod3_CAR1 <- lm(car_1 ~ covid_19 * ebitda_pos_2020, data = data)
+summary(mod3_CAR1)
+```
+
+```{r}
+kable(extractCoefs(mod3_CAR1))
+```
+
+At a 90% level of siginificance, the relationship/interaction between car 1 and Covid is significant. The other interactions are considered not to be significant, at any other higher level of significance. Taking the p-value of the model at a 90% level of significance, the relationship  between car1, EBITDA and COVID 19 is not significant. Examining the F-value, it is less than 1, suggesting that the null hypothesis: That the car 1 and covid19 + ebitda have a significant relationship is false.
+
+```{r}
+mod3_CAR2 <- lm(car_2 ~ covid_19 * ebitda_pos_2020, data = data)
+summary(mod3_CAR2)
+```
+
+```{r}
+kable(extractCoefs(mod3_CAR2))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod3_CAR2)
+```
+
+There are no significant effects on CAR2 that are detected.
+
+```{r}
+data %>%
+  ggplot( aes(x=covid_19, y=revenue_pos_2020, fill=covid_19)) +
+    geom_boxplot() +
+    scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+    geom_jitter(color="black", size=0.4, alpha=0.9) +
+    theme_light() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("revenue_pos_2020 VS COVID 19") +
+    xlab("")
+```
+Revenue not affectd by Covid from plots
+
+
+```{r}
+mod4_CAR1 <- lm(car_1 ~ covid_19 * revenue_pos_2020, data = data)
+summary(mod4_CAR1)
+```
+
+```{r}
+kable(extractCoefs(mod4_CAR1))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod4_CAR1)
+```
+
+At a 90% level of siginificance, the relationship/interaction between car 1 and Covid is not significant. The other interactions are also considered not to be significant. However, Revenue and CAR1 seem to have a more significant relationship than the Covid and the Interaction between Revenue and Covid on CAR1.l Taking the p-value of the model at a 90% level of significance, the relationship  between car1, revenue and COVID 19 is not significant, we reject  the null hypothesis.
+
+```{r}
+mod4_CAR2 <- lm(car_2 ~ covid_19 * revenue_pos_2020, data = data)
+summary(mod4_CAR2)
+```
+
+```{r}
+kable(extractCoefs(mod4_CAR2))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod4_CAR2)
+```
+
+At a 90% level of siginificance, the relationship/interaction between car2 and revenue statistically significant. The other interactions are not considered to be statistically significant. Taking the p-value of the model at a 90% level of significance, the relationship  between car2 and the predictors is statistically significant. Examining the F-value, suggests that the null hypothesis: That the car2 and covid19, revenue_pos have a significant relationship is True. 
+
+```{r}
+mod5_CAR1 <- lm(car_1 ~ covid_19 * p_e_dummy, data = data)
+summary(mod5_CAR1)
+```
+
+```{r}
+kable(extractCoefs(mod5_CAR1))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod5_CAR1)
+```
+
+At a 90% level of siginificance, the relationship/interaction between car 1 and Covid is not statistically significant. The other interactions are also considered not to be significant. Taking the p-value of the model at a 90% level of significance, the relationship  between car1, p_e_dummy and COVID 19 is statistically significant. Examining the F-value, suggests that the null hypothesis: That the car 1 and covid19, p_e_dummy does have a significant relationship is True. 
+
+```{r}
+mod5_CAR2 <- lm(car_2 ~ covid_19 * p_e_dummy, data = data)
+summary(mod5_CAR2)
+```
+
+```{r}
+kable(extractCoefs(mod5_CAR2))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod5_CAR2)
+```
+
+At a 90% level of siginificance, the relationship/interaction between car2 and the predictors is not statistically significant. Examining the p-value of the model at a 90% level of significance, the relationship  between car1 and the predictors is not statistically significant. Examining the F-value, it is less than 1,suggests that the null hypothesis: That the car 1 and the predictors have a significant relationship is False. 
+
+PE dummy 1 have a marginally significant effect on CAR1, but no interaction with COVID is detected. When included, the relationship between CAR1 and COVID disappears. 
+
+Revenue pos 2020 have a significant positive effect on CAR2 (p < 0.05).
+
+Note, however, that when relatively small sample sizes it is not recommended to estimate a relatively high number of parameters, so it would be better tbo test for simple effects with the given datsaet.
+
+## Hypothesis 4
+
+**The financial strength together with the size has a positive impact on the cumulative abnormal return (CAR = dependent variable) during COVID-19.**
+
+```{r}
+mod6_CAR1 <- lm(car_1 ~ covid_19 * size_revenue * ebitda_pos_2020, data = data)
+summary(mod6_CAR1)
+```
+
+```{r}
+kable(extractCoefs(mod6_CAR1))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod6_CAR1)
+```
+
+```{r}
+mod6_CAR2 <- lm(car_2 ~ covid_19 * size_revenue * ebitda_pos_2020, data = data)
+summary(mod6_CAR2)
+```
+
+```{r}
+kable(extractCoefs(mod6_CAR2))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod6_CAR2)
+```
+
+```{r}
+mod7_CAR1 <- lm(car_1 ~ covid_19 * size_revenue * revenue_pos_2020, data = data)
+summary(mod7_CAR1)
+```
+
+```{r}
+kable(extractCoefs(mod7_CAR1))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod7_CAR1)
+```
+
+```{r}
+mod7_CAR2 <- lm(car_2 ~ covid_19 * size_revenue * revenue_pos_2020, data = data)
+summary(mod7_CAR2)
+```
+
+```{r}
+kable(extractCoefs(mod7_CAR2))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod7_CAR2)
+```
+
+```{r}
+mod8_CAR1 <- lm(car_1 ~ covid_19 * size_revenue * p_e_dummy, data = data)
+summary(mod8_CAR1)
+```
+
+```{r}
+kable(extractCoefs(mod8_CAR1))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod8_CAR1)
+```
+
+```{r}
+mod8_CAR2 <- lm(car_2 ~ covid_19 * size_revenue * p_e_dummy, data = data)
+summary(mod8_CAR2)
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod8_CAR2)
+```
+
+### Response to hypothesis 4
+
+Revenue pos 2020 maintain its significat small positive effect on CAR2 when accounting for other explanatory variables. Revenue pos 2020 present a small negative marginally sigificant interaction with COVID19. 
+The models are also not statistically significant at a 90% level of significance. 
+However, these effects on CAR are very low (see estimates).
+
+## HYPOTHESIS 5
+
+**Local transaction (cross-border = 0) has a positive impact on the cumulative abnormal return (CAR = dependent variable).**
+
+```{r}
+data_copy = data
+data$covid_19 = as.numeric(data$covid_19)
+```
+
+
+
+```{r}
+
+data = filter(data, covid_19!="0")
+mod9_CAR1 <- lm(car_1 ~ cross_border * covid_19, data = data)
+summary(mod9_CAR1)
+```
+
+```{r}
+kable(extractCoefs(mod9_CAR1))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod9_CAR1)
+```
+
+```{r}
+mod9_CAR2 <- lm(car_2 ~ cross_border * covid_19, data = data)
+summary(mod9_CAR2)
+```
+
+```{r}
+kable(extractCoefs(mod9_CAR2))
+```
+
+```{r}
+par(mfrow=c(2,3))
+plot(mod9_CAR2)
+```
+
+### Response to hypothesis 5
+
+No effect of local transcation on CAR observed.
+
+
+## Extra Models:
+
+```{r}
+mod_1_car1 = lm(car_1~covid_19, data = data)
+summary(mod_1_car1)
+```
+
+
+```{r}
+mod_1_car2 = lm(car_2~covid_19, data = data)
+summary(mod_1_car2)
+```
+
+```{r}
+mod_2_car1 = lm(car_1~covid_19+sector, data = data)
+summary(mod_2_car1)
+```
+
+
+```{r}
+mod_2_car2 = lm(car_2~covid_19+sector, data = data)
+summary(mod_2_car2)
+```
+
+
+```{r}
+mod_3_car1 = lm(car_1~covid_19+diversification+cash+size_relative, data = data)
+summary(mod_3_car1)
+```
+
+
+```{r}
+mod_3_car2 = lm(car_2~covid_19+diversification+cash+size_relative, data = data)
+summary(mod_3_car2)
+```
+
+```{r}
+mod_4_car1 = lm(car_1~covid_19+diversification+cash+size_revenue+size_relative +(covid_19*size_revenue), data = data)
+summary(mod_4_car1)
+```
+
+
+```{r}
+mod_4_car2 = lm(car_2~covid_19+diversification+cash+size_revenue+size_relative +(covid_19*size_revenue), data = data)
+summary(mod_4_car2)
+```
+
+
+
+```{r}
+mod_5_car1 = lm(car_1~covid_19+diversification+cash+size_revenue+size_category+size_relative +(covid_19*size_category), data = data)
+summary(mod_5_car1)
+```
+
+
+```{r}
+mod_5_car2 = lm(car_2~covid_19+diversification+cash+size_revenue+size_category+size_relative +(covid_19*size_category), data = data)
+summary(mod_5_car2)
+```
+
+```{r}
+mod_6_car1 = lm(car_1~covid_19+diversification+cash+ebitda_pos_2020+size_relative +(covid_19*ebitda_pos_2020), data = data)
+summary(mod_6_car1)
+```
+
+
+```{r}
+mod_6_car2 = lm(car_2~covid_19+diversification+cash+ebitda_pos_2020+size_relative +(covid_19*ebitda_pos_2020), data = data)
+summary(mod_6_car2)
+```
+
+```{r}
+mod_7_car1 = lm(car_1~covid_19+diversification+cash+revenue_pos_2020+size_relative +(covid_19*revenue_pos_2020), data = data)
+summary(mod_7_car1)
+```
+
+
+```{r}
+mod_7_car2 = lm(car_2~covid_19+diversification+cash+revenue_pos_2020+size_relative +(covid_19*revenue_pos_2020), data = data)
+summary(mod_7_car2)
+```
+
+```{r}
+mod_8_car1 = lm(car_1~covid_19+diversification+cash+p_e_dummy+size_relative +(covid_19*p_e_dummy), data = data)
+summary(mod_8_car1)
+```
+
+
+```{r}
+mod_8_car2 = lm(car_2~covid_19+diversification+cash+p_e_dummy+size_relative +(covid_19*p_e_dummy), data = data)
+summary(mod_8_car2)
+```
+
+```{r}
+mod_9_car1 = lm(car_1~covid_19+diversification+cash+ebitda_pos_2020+size_revenue+size_relative +(covid_19*ebitda_pos_2020*size_revenue), data = data)
+summary(mod_9_car1)
+```
+
+
+```{r}
+mod_9_car2 = lm(car_2~covid_19+diversification+cash+ebitda_pos_2020+size_revenue+size_relative +(covid_19*ebitda_pos_2020*size_revenue), data = data)
+summary(mod_9_car2)
+```
+
+
+```{r}
+mod_10_car1 = lm(car_1~covid_19+diversification+cash+ebitda_pos_2020+size_revenue+size_relative +(covid_19*revenue_pos_2020*size_revenue), data = data)
+summary(mod_10_car1)
+```
+
+
+```{r}
+mod_10_car2 = lm(car_2~covid_19+diversification+cash+ebitda_pos_2020+size_revenue+size_relative +(covid_19*revenue_pos_2020*size_revenue), data = data)
+summary(mod_10_car2)
+```
+
+```{r}
+mod_11_car1 = lm(car_1~covid_19+diversification+cash+ebitda_pos_2020+size_revenue+size_relative +(covid_19*p_e_dummy*size_revenue), data = data)
+summary(mod_11_car1)
+```
+
+
+```{r}
+mod_11_car2 = lm(car_2~covid_19+diversification+cash+ebitda_pos_2020+size_revenue+size_relative +(covid_19*p_e_dummy*size_revenue), data = data)
+summary(mod_11_car2)
+```
+
+```{r}
+mod_12_car1 = lm(car_1~covid_19+diversification+cross_border+cash+size_relative +(covid_19*cross_border), data = data)
+summary(mod_12_car1)
+```
+
+
+```{r}
+mod_12_car2 = lm(car_2~covid_19+diversification+cross_border+cash+size_relative +(covid_19*cross_border), data = data)
+summary(mod_12_car2)
+```
+## cash MOdels
+
+```{r}
+cash_CAR1_mod_1 = lm(car_1~covid_19+cash+(covid_19*cash), data = data)
+summary(cash_CAR1_mod_1)
+```
+
+
+```{r}
+cash_CAR2_mod_1 = lm(car_2~covid_19+cash+(covid_19*cash), data = data)
+summary(cash_CAR2_mod_1)
+```
+
+
+```{r}
+cash_CAR1_mod_2 = lm(car_1~covid_19+shares+(covid_19*shares), data = data)
+summary(cash_CAR1_mod_2)
+```
+
+
+```{r}
+cash_CAR2_mod_2 = lm(car_2~covid_19+shares+(covid_19*shares), data = data)
+summary(cash_CAR2_mod_2)
+```
+
+
+```{r}
+cash_CAR1_mod_3 = lm(car_1~covid_19+both+cash+shares+(covid_19*both), data = data)
+summary(cash_CAR1_mod_3)
+```
+
+
+```{r}
+cash_CAR2_mod_3 = lm(car_2~covid_19+both+cash+shares+(covid_19*both), data = data)
+summary(cash_CAR2_mod_3)
+```
